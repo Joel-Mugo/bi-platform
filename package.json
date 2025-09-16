@@ -1,0 +1,26 @@
+{
+  "name": "bi-platform",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "14.0.0",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.0.0",
+    "postcss": "^8.0.0",
+    "@google-cloud/bigquery": "^7.0.0",
+    "swr": "^2.0.0",
+    "recharts": "^2.6.2",
+    "lucide-react": "^0.230.0",
+    "clsx": "^1.2.1",
+    "date-fns": "^2.30.0",
+    "uuid": "^9.0.0"
+  }
+}
