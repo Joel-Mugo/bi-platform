@@ -1,4 +1,4 @@
-import { runQuery, datasetName } from "@/utils/bigquery";
+import { runQuery, datasetName } from "../../utils/bigquery";
 
 export default async function handler(req, res) {
   try {
