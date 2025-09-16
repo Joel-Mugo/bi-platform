@@ -1,89 +1,24 @@
-import React from 'react';
-import useSWR from 'swr';
-import ScoreCard from '../components/ScoreCard';
-import DataTable from '../components/DataTable';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { runQuery, datasetName } from '../../../utils/bigquery';
 
-const fetcher = (url) => fetch(url).then((r) => r.json());
+export default async function handler(req, res) {
+  try {
+    if (req.method === 'GET') {
+      const sql = `SELECT * FROM \`${process.env.GCP_PROJECT_ID}.${datasetName()}.sales_orders\` ORDER BY expected_dispatch_date DESC LIMIT 1000`;
+      const rows = await runQuery(sql);
+      return res.status(200).json(rows);
+    }
 
-export default function Dashboard() {
-  const { data: factories } = useSWR('/api/factories', fetcher);
-  const { data: sales } = useSWR('/api/sales', fetcher);
-  const { data: pos } = useSWR('/api/po', fetcher);
+    if (req.method === 'POST') {
+      const { client, sales_order_number, client_po_number, product, qty, expected_dispatch_date } = req.body || {};
+      if (!client || !sales_order_number || !product || !expected_dispatch_date) return res.status(400).json({ error: 'Missing required fields' });
+      const sql = `INSERT INTO \`${process.env.GCP_PROJECT_ID}.${datasetName()}.sales_orders\` (id, client, sales_order_number, client_po_number, product, qty, order_date, expected_dispatch_date, week, month, quarter, status, timestamp) VALUES (GENERATE_UUID(), @client, @sales_order_number, @client_po_number, @product, @qty, CURRENT_DATE(), @expected_dispatch_date, FORMAT_DATE('%V', DATE(@expected_dispatch_date)), EXTRACT(MONTH FROM DATE(@expected_dispatch_date)), CONCAT('Q', CAST(CEILING(EXTRACT(MONTH FROM DATE(@expected_dispatch_date))/3) AS STRING)), 'Planned', CURRENT_TIMESTAMP())`;
+      await runQuery(sql, { client, sales_order_number, client_po_number, product, qty: Number(qty || 0), expected_dispatch_date });
+      return res.status(201).json({ ok: true });
+    }
 
-  const totalProjectedQty = factories ? factories.reduce((s, f) => s + ((Number(f.daily_capacity) || 0) * 20), 0) : 0;
-  const projectedOil = Math.round(totalProjectedQty * 0.12);
-
-  const chartData = factories ? factories.map((f) => ({ name: f.name || 'Factory', efficiency: Math.min(100, (Math.random() * 40) + 50) })) : [];
-
-  const salesColumns = [
-    { key: 'sales_order_number', title: 'Sales Order' },
-    { key: 'client_po_number', title: 'Client PO No' },
-    { key: 'client', title: 'Client' },
-    { key: 'product', title: 'Product' },
-    { key: 'qty', title: 'Quantity' },
-    { key: 'order_date', title: 'Order Date' },
-    { key: 'expected_dispatch_date', title: 'Expected Dispatch' },
-    { key: 'status', title: 'Status' }
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <ScoreCard title="Total Projected Qty" value={totalProjectedQty} subtitle="Next 4 weeks" />
-        <ScoreCard title="Projected Oil (kg)" value={projectedOil} subtitle="Estimated" />
-        <ScoreCard title="Active Factories" value={factories ? factories.length : '—'} subtitle="Factories" />
-      </div>
-
-      <section className="card p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Production Planning — 4-week Forecast</h3>
-          <div className="flex gap-2">
-            <button className="px-3 py-1 rounded bg-white/20">Grid</button>
-            <button className="px-3 py-1 rounded bg-white/10">Timeline</button>
-          </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="col-span-2">
-            <div className="card p-4">
-              <h4 className="text-sm text-slate-600">Factory Efficiency Trends</h4>
-              <div style={{ height: 300 }} className="mt-3">
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="efficiency" stroke="#2f9cff" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <div className="card p-4">
-              <h4 className="text-sm text-slate-600">Quick Production Summary</h4>
-              <div className="mt-3 space-y-2">
-                <div className="text-sm">Projected Start Date: <strong>2025-09-15</strong></div>
-                <div className="text-sm">Utilization: <strong>72%</strong></div>
-                <div className="text-sm">Projected Rounds: <strong>3</strong></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6">
-          <h4 className="text-sm font-semibold mb-2">Sales Orders</h4>
-          <DataTable columns={salesColumns} data={sales || []} />
-        </div>
-
-        <div className="mt-6">
-          <h4 className="text-sm font-semibold mb-2">Purchase Orders</h4>
-          <DataTable columns={salesColumns} data={pos || []} />
-        </div>
-      </section>
-    </div>
-  );
+    return res.status(405).json({ error: 'Method not allowed' });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: e.message });
+  }
 }
