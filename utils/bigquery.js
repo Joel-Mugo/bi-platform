@@ -1,3 +1,4 @@
+// utils/bigquery.js
 import { BigQuery } from '@google-cloud/bigquery';
 
 let bigquery;
@@ -5,13 +6,17 @@ let bigquery;
 function initBigQuery() {
   if (bigquery) return bigquery;
 
-  const credentials = {
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  };
+  const keyBase64 = process.env.GCP_SERVICE_KEY_BASE64;
+  if (!keyBase64) {
+    throw new Error('Missing GCP_SERVICE_KEY_BASE64 env variable');
+  }
+
+  const credentials = JSON.parse(
+    Buffer.from(keyBase64, 'base64').toString('utf8')
+  );
 
   bigquery = new BigQuery({
-    projectId: process.env.GOOGLE_PROJECT_ID,
+    projectId: process.env.GCP_PROJECT_ID,
     credentials,
   });
 
@@ -29,9 +34,3 @@ export async function runQuery(sql, params = {}) {
   const [rows] = await bq.query(options);
   return rows;
 }
-
-export function datasetName() {
-  return process.env.BIGQUERY_DATASET || 'production_planner';
-}
-
-export default { initBigQuery, runQuery, datasetName };
